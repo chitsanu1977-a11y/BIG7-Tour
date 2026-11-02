@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>เงินเที่ยว วงบิ๊กเซเว่น</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* ===== ตั้งค่า =====
+   ใส่ URL ของ Apps Script Web App ตรงนี้
+   ถ้าเว้นว่าง จะเก็บข้อมูลไว้ในเครื่องนี้เท่านั้น (โหมดทดลอง) */
+const API_URL = '';
+const PIN = '7151';
+</script>
+<style>
+:root{
+  --bg:#EEF2F3; --surface:#FFFFFF; --ink:#13303A; --muted:#5E7680; --line:#D5DEE1;
+  --road:#13303A; --sun:#F2B705; --sun-ink:#3A2C00;
+  --in:#1F7A4D; --in-bg:#E3F3EA; --out:#C23B4E; --out-bg:#FBE7EA;
+  --shadow:0 1px 0 rgba(19,48,58,.06), 0 8px 24px -12px rgba(19,48,58,.25);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1E24; --surface:#18303A; --ink:#E7EFF1; --muted:#9DB3BA; --line:#2A4651;
+    --road:#0A161B; --sun:#F2B705; --sun-ink:#2A2000;
+    --in:#5FD39A; --in-bg:#163A2A; --out:#FF8193; --out-bg:#3D1B22;
+    --shadow:0 8px 24px -12px rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Sarabun",system-ui,sans-serif;font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.num{font-family:"Mitr","Sarabun",sans-serif;font-weight:500;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:16px 16px 120px}
+
+/* แบนเนอร์ */
+.notice{background:var(--sun);color:var(--sun-ink);border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:12px;display:flex;gap:10px;align-items:center}
+.notice button{margin-left:auto;background:var(--sun-ink);color:var(--sun);border:0;border-radius:8px;padding:6px 10px;font-size:13px}
+
+/* ตั๋วทริป (ส่วนเด่น) */
+.ticket{position:relative;background:var(--road);color:#F3F6F7;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.ticket-top{padding:20px 20px 14px}
+.trip-name{font-size:14px;color:#A9C1C8}
+.dest{font-family:"Mitr",sans-serif;font-size:30px;line-height:1.15;margin:2px 0 4px;color:#fff}
+.trip-date{font-size:14px;color:#A9C1C8}
+.ticket-edit{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.1);border:0;color:#fff;border-radius:999px;width:36px;height:36px;font-size:17px}
+.road{position:relative;margin:18px 20px 6px;height:44px}
+.road-line{position:absolute;left:0;right:28px;top:26px;border-top:3px dashed rgba(255,255,255,.28)}
+.road-done{position:absolute;left:0;top:26px;border-top:3px solid var(--sun);width:0;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.van{position:absolute;top:0;left:0;font-size:28px;transform:translateX(-4px) scaleX(-1);transition:left .9s cubic-bezier(.2,.8,.2,1)}
+.flag{position:absolute;right:0;top:4px;font-size:24px}
+@media (prefers-reduced-motion:reduce){.road-done,.van{transition:none}}
+.road-meta{display:flex;justify-content:space-between;padding:0 20px 16px;font-size:13px;color:#A9C1C8}
+.perforation{height:0;border-top:2px dashed rgba(255,255,255,.18);margin:0 14px;position:relative}
+.perforation::before,.perforation::after{content:"";position:absolute;top:-12px;width:22px;height:22px;border-radius:50%;background:var(--bg)}
+.perforation::before{left:-25px}.perforation::after{right:-25px}
+.stub{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px;padding:16px 20px 20px}
+.stub small{display:block;font-size:12px;color:#A9C1C8}
+.stub .num{font-size:17px;color:#fff;white-space:nowrap}
+.stub .bal .num{font-size:26px;color:var(--sun)}
+
+/* ส่วนเนื้อหา */
+section{margin-top:26px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+.sec-head h2{font-size:19px}
+.sec-head span{font-size:13px;color:var(--muted)}
+.panel{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:6px 0}
+
+
+.cats{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+.cat-row{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;font-size:14px}
+.cat-row .bar{height:10px;background:var(--bg);border-radius:6px;overflow:hidden}
+.cat-row .bar i{display:block;height:100%;background:var(--out);border-radius:6px}
+
+.chips{display:flex;gap:8px;margin-bottom:10px;overflow-x:auto}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px;font-size:14px;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.tx{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 16px}
+.tx+.tx,.day+.tx{border-top:1px solid var(--line)}
+.tx-ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:18px}
+.tx.in .tx-ico{background:var(--in-bg)}.tx.out .tx-ico{background:var(--out-bg)}
+.tx-title{font-weight:600;font-size:15px}
+.tx-sub{font-size:13px;color:var(--muted)}
+.tx-amt{font-family:"Mitr";font-size:16px;text-align:right}
+.tx.in .tx-amt{color:var(--in)}.tx.out .tx-amt{color:var(--out)}
+.tx-del{display:block;margin-left:auto;margin-top:2px;background:none;border:0;color:var(--muted);font-size:12px;padding:2px 0;text-decoration:underline}
+.day{padding:10px 16px 4px;font-size:13px;color:var(--muted);font-weight:600}
+.day:not(:first-child){border-top:1px solid var(--line)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:15px}
+
+/* ปุ่มเพิ่ม */
+.dock{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--bg) 60%,transparent);display:flex;justify-content:center;gap:10px}
+.dock button{flex:1;max-width:264px;border:0;border-radius:14px;padding:14px 10px;font-family:"Mitr";font-size:16px;box-shadow:var(--shadow)}
+.btn-in{background:var(--in);color:#fff}
+.btn-out{background:var(--out);color:#fff}
+
+/* ชีต / ฟอร์ม */
+.sheet-bg{position:fixed;inset:0;background:rgba(10,22,27,.5);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.sheet-bg.open{display:flex}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:92vh;overflow:auto;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(30px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}}
+.sheet h3{font-size:20px;margin-bottom:14px}
+label{display:block;font-size:14px;color:var(--muted);margin:12px 0 6px}
+input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px}
+.big-input{font-family:"Mitr";font-size:28px;padding:10px 12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pick{display:flex;flex-wrap:wrap;gap:8px}
+.pick button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 14px;font-size:15px}
+.pick button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.actions{display:flex;gap:10px;margin-top:20px}
+.actions button{flex:1;border:0;border-radius:12px;padding:14px;font-family:"Mitr";font-size:16px}
+.ghost{background:var(--bg);color:var(--ink)}
+.primary{background:var(--ink);color:var(--bg)}
+.pin-dots{display:flex;gap:12px;justify-content:center;margin:10px 0 6px}
+.pin-dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink)}
+.pin-dots i.on{background:var(--ink)}
+.err{color:var(--out);font-size:14px;min-height:20px;text-align:center}
+
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+.toast.show{opacity:1}
+.loading{opacity:.55;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="notice" id="lineNotice" hidden>
+    เปิดผ่าน LINE อยู่ ถ้าใช้งานติดขัด ลองเปิดในเบราว์เซอร์
+    <button onclick="openExternal()">เปิดในเบราว์เซอร์</button>
+  </div>
+  <div class="notice" id="demoNotice" hidden>
+    โหมดทดลอง: ข้อมูลเก็บไว้ในเครื่องนี้เท่านั้น ใส่ API_URL เพื่อให้ทุกคนในวงเห็นข้อมูลเดียวกัน
+  </div>
+
+  <div class="ticket">
+    <button class="ticket-edit" aria-label="ตั้งค่าทริป" onclick="guard(openSettings)">⚙︎</button>
+    <div class="ticket-top">
+      <div class="trip-name" id="tTrip">เงินเที่ยว วงบิ๊กเซเว่น</div>
+      <h1 class="dest" id="tDest">ทริปของวง</h1>
+      <div class="trip-date" id="tDate"></div>
+    </div>
+    <div class="road" aria-hidden="true">
+      <div class="road-line"></div>
+      <div class="road-done" id="roadDone"></div>
+      <div class="van" id="van">🚐</div>
+      <div class="flag">🏁</div>
+    </div>
+    <div class="road-meta">
+      <span id="pct">0% ของเป้า</span>
+      <span id="goalTxt">เป้า ฿0</span>
+    </div>
+    <div class="perforation"></div>
+    <div class="stub">
+      <div class="bal"><small>เงินคงเหลือ</small><div class="num" id="sBal">฿0</div></div>
+      <div><small>รายรับ</small><div class="num" id="sIn">฿0</div></div>
+      <div><small>รายจ่าย</small><div class="num" id="sOut">฿0</div></div>
+    </div>
+  </div>
+
+  <section id="catSec">
+    <div class="sec-head"><h2>ใช้เงินไปกับอะไร</h2></div>
+    <div class="panel"><div class="cats" id="cats"></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>รายการทั้งหมด</h2><span id="txCount"></span></div>
+    <div class="chips" role="group" aria-label="กรองรายการ">
+      <button class="chip" aria-pressed="true" data-f="all">ทั้งหมด</button>
+      <button class="chip" aria-pressed="false" data-f="in">รายรับ</button>
+      <button class="chip" aria-pressed="false" data-f="out">รายจ่าย</button>
+    </div>
+    <div class="panel" id="txList"></div>
+  </section>
+</div>
+
+<div class="dock">
+  <button class="btn-in" onclick="guard(()=>openTx('in'))">+ รายรับ</button>
+  <button class="btn-out" onclick="guard(()=>openTx('out'))">− รายจ่าย</button>
+</div>
+
+<!-- ชีตเพิ่มรายการ -->
+<div class="sheet-bg" id="txSheet" onclick="if(event.target===this)closeSheet(this)">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="txTitle">
+    <h3 id="txTitle">เพิ่มรายรับ</h3>
+    <label for="fAmt">จำนวนเงิน (บาท)</label>
+    <input id="fAmt" class="big-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0">
+    <div id="catWrap">
+      <label>หมวด</label>
+      <div class="pick" id="fCat"></div>
+    </div>
+    <label for="fDate">วันที่</label>
+    <input id="fDate" type="date">
+    <label for="fNote">หมายเหตุ</label>
+    <input id="fNote" placeholder="เช่น ค่าน้ำมันขาไป, เงินจากงานแต่ง">
+    <div class="err" id="txErr"></div>
+    <div class="actions">
+      <button class="ghost" onclick="closeSheet(txSheet)">ยกเลิก</button>
+      <button class="primary" id="txSave" onclick="saveTx()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ชีตตั้งค่าทริป -->
+<div class="sheet-bg" id="setSheet" onclick="if(event.target===this)closeSheet(this)">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <h3 id="setTitle">ตั้งค่าทริป</h3>
+    <label for="sDestIn">ปลายทาง</label>
+    <input id="sDestIn" placeholder="เช่น เขาใหญ่">
+    <div class="row2">
+      <div><label for="sGoalIn">เป้าเงินเก็บ (บาท)</label><input id="sGoalIn" type="number" inputmode="numeric" min="0"></div>
+      <div><label for="sDateIn">วันเดินทาง</label><input id="sDateIn" type="date"></div>
+    </div>
+    <div class="err" id="setErr"></div>
+    <div class="actions">
+      <button class="ghost" onclick="closeSheet(setSheet)">ยกเลิก</button>
+      <button class="primary" onclick="saveSettings()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ชีต PIN -->
+<div class="sheet-bg" id="pinSheet" onclick="if(event.target===this)closeSheet(this)">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pinTitle" style="text-align:center">
+    <h3 id="pinTitle">ใส่ PIN เพื่อแก้ไขข้อมูล</h3>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <input id="pinIn" type="password" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="PIN 4 หลัก" style="text-align:center;font-size:22px;letter-spacing:10px">
+    <div class="err" id="pinErr"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const INCOME_CATS = ['เงินเก็บ','รายได้จากงาน','อื่นๆ'];
+const OUT_CATS = [
+  {n:'เดินทาง',i:'⛽'},{n:'ที่พัก',i:'🏨'},{n:'อาหาร',i:'🍲'},
+  {n:'กิจกรรม',i:'🎟️'},{n:'ของฝาก',i:'🎁'},{n:'อื่นๆ',i:'🧾'}
+];
+const DEFAULT_SETTINGS = {destination:'ทริปของวง', goal:20000, tripDate:''};
+
+let state = {settings:{...DEFAULT_SETTINGS}, tx:[]};
+let filter = 'all', txType = 'in', pickCat = '';
+
+const $ = id => document.getElementById(id);
+const baht = n => '฿' + Number(n||0).toLocaleString('th-TH',{maximumFractionDigits:2});
+const thDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '';
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today = () => new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200)}
+
+/* ===== ชั้นข้อมูล: Apps Script (GET) หรือ localStorage ===== */
+const LS_KEY = 'b7-trip-fund';
+function lsLoad(){try{return JSON.parse(localStorage.getItem(LS_KEY))||null}catch(e){return null}}
+function lsSave(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
+
+async function api(action, params={}){
+  if(!API_URL){
+    if(action==='getAll'){const d=lsLoad(); if(d) state=d; return state;}
+    if(action==='add'){state.tx.push(JSON.parse(params.data)); lsSave(); return {ok:true};}
+    if(action==='delete'){state.tx=state.tx.filter(t=>t.id!==params.id); lsSave(); return {ok:true};}
+    if(action==='saveSettings'){state.settings=JSON.parse(params.data); lsSave(); return {ok:true};}
+  }
+  const q = new URLSearchParams({action, ...params, _:Date.now()});
+  const res = await fetch(API_URL + '?' + q.toString());
+  const json = await res.json();
+  if(json.error) throw new Error(json.error);
+  return json;
+}
+
+async function load(){
+  $('app').classList.add('loading');
+  try{
+    const d = await api('getAll');
+    state.settings = {...DEFAULT_SETTINGS, ...(d.settings||{})};
+    state.tx = d.tx || [];
+  }catch(e){ toast('โหลดข้อมูลไม่สำเร็จ ตรวจ API_URL แล้วลองใหม่'); }
+  $('app').classList.remove('loading');
+  render();
+}
+
+/* ===== แสดงผล ===== */
+function render(){
+  const s = state.settings, tx = state.tx;
+  const inSum = tx.filter(t=>t.type==='in').reduce((a,t)=>a+Number(t.amount),0);
+  const outSum = tx.filter(t=>t.type==='out').reduce((a,t)=>a+Number(t.amount),0);
+  const bal = inSum - outSum;
+  const goal = Number(s.goal)||0;
+  const pct = goal ? Math.min(100, Math.round(inSum/goal*100)) : 0;
+
+  $('tDest').textContent = s.destination || 'ทริปของวง';
+  $('tDate').textContent = s.tripDate ? 'ออกเดินทาง ' + thDate(s.tripDate) + daysLeft(s.tripDate) : 'ยังไม่กำหนดวันเดินทาง';
+  $('sBal').textContent = baht(bal);
+  $('sIn').textContent = baht(inSum);
+  $('sOut').textContent = baht(outSum);
+  $('pct').textContent = `เก็บได้ ${pct}% ของเป้า`;
+  $('goalTxt').textContent = 'เป้า ' + baht(goal);
+  requestAnimationFrame(()=>{
+    $('roadDone').style.width = `calc((100% - 28px) * ${pct/100})`;
+    $('van').style.left = `calc((100% - 56px) * ${pct/100})`;
+  });
+
+  // หมวดรายจ่าย
+  const byCat = {};
+  tx.filter(t=>t.type==='out').forEach(t=>byCat[t.category]=(byCat[t.category]||0)+Number(t.amount));
+  const cats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  $('catSec').hidden = !cats.length;
+  $('cats').innerHTML = cats.map(([c,v])=>`<div class="cat-row">
+      <span>${icon('out',c)} ${esc(c)}</span><div class="bar"><i style="width:${outSum?v/outSum*100:0}%"></i></div><span>${baht(v)}</span>
+    </div>`).join('');
+
+  // รายการ
+  const list = tx.filter(t=>filter==='all'||t.type===filter)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||'') || (b.createdAt||0)-(a.createdAt||0));
+  $('txCount').textContent = list.length + ' รายการ';
+  let html = '', lastDay = '';
+  list.forEach(t=>{
+    if(t.date!==lastDay){ html += `<div class="day">${thDate(t.date)}</div>`; lastDay=t.date; }
+    const title = t.note || t.category;
+    const sub = t.note ? t.category : '';
+    html += `<div class="tx ${t.type}">
+      <div class="tx-ico">${icon(t.type,t.category)}</div>
+      <div><div class="tx-title">${esc(title)}</div><div class="tx-sub">${esc(sub)}</div></div>
+      <div><div class="tx-amt">${t.type==='in'?'+':'−'}${baht(t.amount).slice(1)}</div>
+      <button class="tx-del" onclick="guard(()=>delTx('${esc(t.id)}'))">ลบ</button></div>
+    </div>`;
+  });
+  $('txList').innerHTML = html || `<div class="empty">${filter==='all'?'ยังไม่มีรายการ เริ่มจากกด “+ รายรับ” เมื่อมีเงินเข้ากองกลาง':'ยังไม่มีรายการในหมวดนี้'}</div>`;
+}
+
+function icon(type,cat){
+  if(type==='in') return cat==='รายได้จากงาน' ? '🎸' : '💰';
+  return (OUT_CATS.find(c=>c.n===cat)||{i:'🧾'}).i;
+}
+function daysLeft(d){
+  const n = Math.ceil((new Date(d+'T00:00:00') - new Date(today()+'T00:00:00'))/86400000);
+  return n>0 ? ` (อีก ${n} วัน)` : n===0 ? ' (วันนี้!)' : '';
+}
+
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+  filter=c.dataset.f;
+  document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x===c));
+  render();
+});
+
+/* ===== PIN ===== */
+let afterPin = null;
+function isUnlocked(){try{return sessionStorage.getItem('b7-pin')==='ok'}catch(e){return false}}
+function guard(fn){
+  if(isUnlocked()) return fn();
+  afterPin = fn; $('pinIn').value=''; $('pinErr').textContent=''; dots(0);
+  openSheet($('pinSheet')); setTimeout(()=>$('pinIn').focus(),50);
+}
+function dots(n){[...$('pinDots').children].forEach((d,i)=>d.classList.toggle('on',i<n))}
+$('pinIn').addEventListener('input',e=>{
+  const v=e.target.value.replace(/\D/g,'').slice(0,4); e.target.value=v; dots(v.length);
+  if(v.length===4){
+    if(v===PIN){ try{sessionStorage.setItem('b7-pin','ok')}catch(_){}; closeSheet($('pinSheet')); const f=afterPin; afterPin=null; f&&f(); }
+    else { $('pinErr').textContent='PIN ไม่ถูกต้อง'; e.target.value=''; dots(0); }
+  }
+});
+
+/* ===== ชีต ===== */
+function openSheet(el){el.classList.add('open')}
+function closeSheet(el){el.classList.remove('open')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.sheet-bg.open').forEach(closeSheet)});
+
+function pills(el, items, current, onPick){
+  el.innerHTML = items.map(v=>`<button type="button" aria-pressed="${v===current}">${esc(v)}</button>`).join('');
+  [...el.children].forEach((b,i)=>b.onclick=()=>{onPick(items[i]); [...el.children].forEach(x=>x.setAttribute('aria-pressed',x===b));});
+}
+
+function openTx(type){
+  txType = type;
+  $('txTitle').textContent = type==='in' ? 'เพิ่มรายรับ' : 'เพิ่มรายจ่าย';
+  $('fAmt').value=''; $('fNote').value=''; $('fDate').value=today(); $('txErr').textContent='';
+  if(type==='in'){
+    pickCat='เงินเก็บ';
+    pills($('fCat'), INCOME_CATS, pickCat, v=>pickCat=v);
+  }else{
+    pickCat='';
+    pills($('fCat'), OUT_CATS.map(c=>c.n), '', v=>pickCat=v);
+  }
+  openSheet($('txSheet')); setTimeout(()=>$('fAmt').focus(),50);
+}
+
+async function saveTx(){
+  const amount = parseFloat($('fAmt').value);
+  if(!(amount>0)) return $('txErr').textContent='ใส่จำนวนเงินมากกว่า 0';
+  if(!pickCat) return $('txErr').textContent='เลือกหมวดก่อนบันทึก';
+  const t = {id:'t'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), type:txType, amount,
+    category:pickCat, date:$('fDate').value||today(), note:$('fNote').value.trim(), createdAt:Date.now()};
+  $('txSave').disabled=true;
+  try{
+    await api('add',{data:JSON.stringify(t)});
+    if(API_URL) state.tx.push(t);
+    closeSheet($('txSheet')); render(); toast(txType==='in'?'บันทึกรายรับแล้ว':'บันทึกรายจ่ายแล้ว');
+  }catch(e){ $('txErr').textContent='บันทึกไม่สำเร็จ: '+e.message; }
+  $('txSave').disabled=false;
+}
+
+async function delTx(id){
+  const t = state.tx.find(x=>x.id===id); if(!t) return;
+  if(!confirm(`ลบรายการ ${t.category} ${baht(t.amount)} ?`)) return;
+  try{
+    await api('delete',{id});
+    if(API_URL) state.tx = state.tx.filter(x=>x.id!==id);
+    render(); toast('ลบรายการแล้ว');
+  }catch(e){ toast('ลบไม่สำเร็จ: '+e.message); }
+}
+
+function openSettings(){
+  const s=state.settings;
+  $('sDestIn').value=s.destination||''; $('sGoalIn').value=s.goal||''; $('sDateIn').value=s.tripDate||'';
+  $('setErr').textContent='';
+  openSheet($('setSheet'));
+}
+async function saveSettings(){
+  const s = {destination:$('sDestIn').value.trim()||'ทริปของวง', goal:Number($('sGoalIn').value)||0, tripDate:$('sDateIn').value};
+  try{
+    await api('saveSettings',{data:JSON.stringify(s)});
+    state.settings=s; closeSheet($('setSheet')); render(); toast('บันทึกการตั้งค่าแล้ว');
+  }catch(e){ $('setErr').textContent='บันทึกไม่สำเร็จ: '+e.message; }
+}
+
+/* ===== LINE in-app browser ===== */
+const isLine = /Line\//i.test(navigator.userAgent);
+if(isLine) $('lineNotice').hidden=false;
+function openExternal(){
+  const u=new URL(location.href); u.searchParams.set('openExternalBrowser','1'); location.href=u.toString();
+}
+if(!API_URL) $('demoNotice').hidden=false;
+
+load();
+</script>
+</body>
+</html>
